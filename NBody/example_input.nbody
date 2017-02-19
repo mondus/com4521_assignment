@@ -1,0 +1,7 @@
+# NBody simulation file
+#demonstration of single large central mass
+x=0.5, y=0.5, vx=0, vy=0, m=0.1
+#example of missing information
+x=0.234, y=0.567
+#example of missing information
+x=0.987, y=0.765
