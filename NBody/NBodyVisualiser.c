@@ -157,50 +157,47 @@ void displayLoop(void)
 	//call the simulation function
 	simulate_function();
 
-	if (M == CUDA){
-		printf("Error: CUDA Mode Rendering Not Supported for Part 1\n");
-	}
 	//CPU or OPENMP
-	else{
-		//map buffer to positions TBO and copy data to it from user supplied pointer
-		glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_nbody);
-		dptr = (float*)glMapBuffer(GL_TEXTURE_BUFFER_EXT, GL_WRITE_ONLY);	//tbo_nbody buffer
-		if (dptr == 0){
-			printf("Error: Unable to map nBody Texture Buffer Object\n");
-			return;
-		}
-		if (Bodies != 0){
-			for (i = 0; i < N; i++){
-				unsigned int index = i * 2;
-				dptr[index] = Bodies[i].x;
-				dptr[index + 1] = Bodies[i].y;
-			}
-		}
-		else if ((PositionsX != 0) && (PositionsY != 0)){
-			for (i = 0; i < N; i++){
-				unsigned int index = i * 2;
-				dptr[index] = PositionsX[i];
-				dptr[index + 1] = PositionsY[i];
-			}
-		}
-		glUnmapBuffer(GL_TEXTURE_BUFFER_EXT);
-		glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
 
-		//map hist buffer to positions TBO and copy data to it from user supplied pointer
-		glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_hist);
-		dptr = (float*)glMapBuffer(GL_TEXTURE_BUFFER_EXT, GL_WRITE_ONLY);	//tbo_nbody buffer
-		if (dptr == 0){
-			printf("Error: Unable to map Histogram Texture Buffer Object\n");
-			return;
-		}
-		if (Activity != 0){
-			for (i = 0; i < D*D; i++){
-				dptr[i] = Activity[i];
-			}
-		}
-		glUnmapBuffer(GL_TEXTURE_BUFFER_EXT);
-		glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
-	}
+    //map buffer to positions TBO and copy data to it from user supplied pointer
+    glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_nbody);
+    dptr = (float*)glMapBuffer(GL_TEXTURE_BUFFER_EXT, GL_WRITE_ONLY);	//tbo_nbody buffer
+    if (dptr == 0){
+        printf("Error: Unable to map nBody Texture Buffer Object\n");
+        return;
+    }
+    if (Bodies != 0){
+        for (i = 0; i < N; i++){
+            unsigned int index = i * 2;
+            dptr[index] = Bodies[i].x;
+            dptr[index + 1] = Bodies[i].y;
+        }
+    }
+    else if ((PositionsX != 0) && (PositionsY != 0)){
+        for (i = 0; i < N; i++){
+            unsigned int index = i * 2;
+            dptr[index] = PositionsX[i];
+            dptr[index + 1] = PositionsY[i];
+        }
+    }
+    glUnmapBuffer(GL_TEXTURE_BUFFER_EXT);
+    glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
+
+    //map hist buffer to positions TBO and copy data to it from user supplied pointer
+    glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_hist);
+    dptr = (float*)glMapBuffer(GL_TEXTURE_BUFFER_EXT, GL_WRITE_ONLY);	//tbo_nbody buffer
+    if (dptr == 0){
+        printf("Error: Unable to map Histogram Texture Buffer Object\n");
+        return;
+    }
+    if (Activity != 0){
+        for (i = 0; i < D*D; i++){
+            dptr[i] = Activity[i];
+        }
+    }
+    glUnmapBuffer(GL_TEXTURE_BUFFER_EXT);
+    glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
+
 
 	//render
 	render();

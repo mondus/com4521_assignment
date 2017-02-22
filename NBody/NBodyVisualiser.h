@@ -10,8 +10,6 @@
 #include <windows.h>
 #include <GL/glew.h>
 #include <GL/freeglut.h>
-#include <cuda_runtime.h>
-#include <vector_types.h>
 
 #include "NBody.h"
 
