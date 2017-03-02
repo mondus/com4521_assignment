@@ -11,10 +11,10 @@
 static unsigned int N;
 static unsigned int D;
 static MODE M;
-const float *PositionsX = 0;
-const float *PositionsY = 0;
-const nbody *Bodies = 0;
-const float *Activity = 0;
+float *PositionsX = 0;
+float *PositionsY = 0;
+nbody *Bodies = 0;
+float *Densities = 0;
 void(*simulate_function)(void) = 0;
 
 // instancing variables for histogram
@@ -69,12 +69,14 @@ void handleMouseMotionDefault(int x, int y);
 // Vertex shader source code
 const char* hist_vertexShaderSource =
 {
-	"#extension GL_EXT_gpu_shader4 : enable												\n"
+
+    "#version 130				                            							\n"
+    "#extension GL_EXT_gpu_shader4 : enable												\n"
 	"uniform samplerBuffer instance_tex;												\n"
-	"attribute in uint instance_index;													\n"
+	"in uint instance_index;						        							\n"
 	"void main()																		\n"
 	"{																					\n"
-	"	float instance_data = texelFetchBuffer(instance_tex, (int)instance_index);		\n"
+    "	float instance_data = texelFetchBuffer(instance_tex, int(instance_index)).x;	\n"
 	"	vec4 position = vec4(gl_Vertex.x, gl_Vertex.y, 0.0f, 1.0f);						\n"
 	"	gl_FrontColor = vec4(instance_data, 0.0f, 0.0f, 0.0f);							\n"
 	"   gl_Position = gl_ModelViewProjectionMatrix * position;		    				\n"
@@ -82,12 +84,13 @@ const char* hist_vertexShaderSource =
 };
 const char* nbody_vertexShaderSource =
 {
-	"#extension GL_EXT_gpu_shader4 : enable												\n"
+    "#version 130										                                \n"
+    "#extension GL_EXT_gpu_shader4 : enable												\n"
 	"uniform samplerBuffer instance_tex;												\n"
-	"attribute in uint instance_index;													\n"
+	"in uint instance_index;									        				\n"
 	"void main()																		\n"
 	"{																					\n"
-	"	vec2 instance_data = texelFetchBuffer(instance_tex, (int)instance_index);		\n"
+    "	vec2 instance_data = texelFetchBuffer(instance_tex, int(instance_index)).xy;	\n"
 	"	vec4 position = vec4(gl_Vertex.x+instance_data.x,								\n"
 	"					     gl_Vertex.y+instance_data.y,								\n"
 	"						 gl_Vertex.z, 1.0f);										\n"
@@ -115,7 +118,7 @@ void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
 	initNBodyVertexData();
 }
 
-void setNBodyPositions2f(const float *positions_x, const float *positions_y)
+void setNBodyPositions2f(float *positions_x, float *positions_y)
 {
 	PositionsX = positions_x;
 	PositionsY = positions_y;
@@ -124,7 +127,7 @@ void setNBodyPositions2f(const float *positions_x, const float *positions_y)
 	}
 }
 
-void setNBodyPositions(const nbody *bodies)
+void setNBodyPositions(nbody *bodies)
 {
 	Bodies = bodies;
 	if ((PositionsX != 0) || (PositionsY != 0)){
@@ -132,9 +135,9 @@ void setNBodyPositions(const nbody *bodies)
 	}
 }
 
-void setActivityMapData(const float *activity)
+void setHistogramData(float *densities)
 {
-	Activity = activity;
+	Densities = densities;
 }
 
 void startVisualisationLoop()
@@ -157,47 +160,50 @@ void displayLoop(void)
 	//call the simulation function
 	simulate_function();
 
+	if (M == CUDA){
+		printf("Error: CUDA Mode Rendering Not Supported for Part 1\n");
+	}
 	//CPU or OPENMP
+	else{
+		//map buffer to positions TBO and copy data to it from user supplied pointer
+		glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_nbody);
+		dptr = (float*)glMapBuffer(GL_TEXTURE_BUFFER_EXT, GL_WRITE_ONLY);	//tbo_nbody buffer
+		if (dptr == 0){
+			printf("Error: Unable to map nBody Texture Buffer Object\n");
+			return;
+		}
+		if (Bodies != 0){
+			for (i = 0; i < N; i++){
+				unsigned int index = i * 2;
+				dptr[index] = Bodies[i].x;
+				dptr[index + 1] = Bodies[i].y;
+			}
+		}
+		else if ((PositionsX != 0) && (PositionsY != 0)){
+			for (i = 0; i < N; i++){
+				unsigned int index = i * 2;
+				dptr[index] = PositionsX[i];
+				dptr[index + 1] = PositionsY[i];
+			}
+		}
+		glUnmapBuffer(GL_TEXTURE_BUFFER_EXT);
+		glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
 
-    //map buffer to positions TBO and copy data to it from user supplied pointer
-    glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_nbody);
-    dptr = (float*)glMapBuffer(GL_TEXTURE_BUFFER_EXT, GL_WRITE_ONLY);	//tbo_nbody buffer
-    if (dptr == 0){
-        printf("Error: Unable to map nBody Texture Buffer Object\n");
-        return;
-    }
-    if (Bodies != 0){
-        for (i = 0; i < N; i++){
-            unsigned int index = i * 2;
-            dptr[index] = Bodies[i].x;
-            dptr[index + 1] = Bodies[i].y;
-        }
-    }
-    else if ((PositionsX != 0) && (PositionsY != 0)){
-        for (i = 0; i < N; i++){
-            unsigned int index = i * 2;
-            dptr[index] = PositionsX[i];
-            dptr[index + 1] = PositionsY[i];
-        }
-    }
-    glUnmapBuffer(GL_TEXTURE_BUFFER_EXT);
-    glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
-
-    //map hist buffer to positions TBO and copy data to it from user supplied pointer
-    glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_hist);
-    dptr = (float*)glMapBuffer(GL_TEXTURE_BUFFER_EXT, GL_WRITE_ONLY);	//tbo_nbody buffer
-    if (dptr == 0){
-        printf("Error: Unable to map Histogram Texture Buffer Object\n");
-        return;
-    }
-    if (Activity != 0){
-        for (i = 0; i < D*D; i++){
-            dptr[i] = Activity[i];
-        }
-    }
-    glUnmapBuffer(GL_TEXTURE_BUFFER_EXT);
-    glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
-
+		//map hist buffer to positions TBO and copy data to it from user supplied pointer
+		glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_hist);
+		dptr = (float*)glMapBuffer(GL_TEXTURE_BUFFER_EXT, GL_WRITE_ONLY);	//tbo_nbody buffer
+		if (dptr == 0){
+			printf("Error: Unable to map Histogram Texture Buffer Object\n");
+			return;
+		}
+		if (Densities != 0){
+			for (i = 0; i < D*D; i++){
+				dptr[i] = Densities[i];
+			}
+		}
+		glUnmapBuffer(GL_TEXTURE_BUFFER_EXT);
+		glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
+	}
 
 	//render
 	render();
@@ -365,16 +371,16 @@ void initHistVertexData()
 	/* texture buffer object */
 
 	glGenBuffers(1, &tbo_hist);
-	glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_hist);
-	glBufferData(GL_TEXTURE_BUFFER_EXT, D*D * 1 * sizeof(float), 0, GL_DYNAMIC_DRAW);		// 1 float elements in a texture buffer object for histogram activity
+    glBindBuffer(GL_TEXTURE_BUFFER, tbo_hist);
+    glBufferData(GL_TEXTURE_BUFFER, D*D * 1 * sizeof(float), 0, GL_DYNAMIC_DRAW);		// 1 float elements in a texture buffer object for histogram density
 
 	/* generate texture */
 	glGenTextures(1, &tex_hist);
-	glBindTexture(GL_TEXTURE_BUFFER_EXT, tex_hist);
-	glTexBufferEXT(GL_TEXTURE_BUFFER_EXT, GL_R32F, tbo_hist);
+    glBindTexture(GL_TEXTURE_BUFFER, tex_hist);
+	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, tbo_hist);
 
 	//unbind buffers
-	glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
+    glBindBuffer(GL_TEXTURE_BUFFER, 0);
 
 	//unbind vao
 	glBindVertexArray(0); // Unbind our Vertex Array Object 
@@ -430,16 +436,16 @@ void initNBodyVertexData()
 	/* texture buffer object */
 
 	glGenBuffers(1, &tbo_nbody);
-	glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_nbody);
-	glBufferData(GL_TEXTURE_BUFFER_EXT, N * 2 * sizeof(float), 0, GL_DYNAMIC_DRAW);		// 2 float elements in a texture buffer object for x and y position
+	glBindBuffer(GL_TEXTURE_BUFFER, tbo_nbody);
+    glBufferData(GL_TEXTURE_BUFFER, N * 2 * sizeof(float), 0, GL_DYNAMIC_DRAW);		// 2 float elements in a texture buffer object for x and y position
 
 	/* generate texture */
 	glGenTextures(1, &tex_nbody);
-	glBindTexture(GL_TEXTURE_BUFFER_EXT, tex_nbody);
-	glTexBufferEXT(GL_TEXTURE_BUFFER_EXT, GL_RG32F, tbo_nbody);
+    glBindTexture(GL_TEXTURE_BUFFER, tex_nbody);
+    glTexBuffer(GL_TEXTURE_BUFFER, GL_RG32F, tbo_nbody);
 
 	//unbind buffers
-	glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
+    glBindBuffer(GL_TEXTURE_BUFFER, 0);
 
 	//unbind vao
 	glBindVertexArray(0); // Unbind our Vertex Array Object 
@@ -543,7 +549,7 @@ void render(void)
 	glRotatef(rotate_z, 0.0, 0.0, 1.0);
 
 
-	//render the activty map
+	//render the densisty field
 	if (display_denisty){
 		// attach the shader program to rendering pipeline to perform per vertex instance manipulation 
 		glUseProgram(vs_hist_program);
@@ -605,7 +611,7 @@ void handleKeyboardDefault(unsigned char key, int x, int y)
 {
 	switch (key) {
 		case(27): case('q') : //escape key or q key
-			//return control to the users program to allow them to clean-up any allocated memory etc.
+			//return control to the users program to allow them to clean-up any allcoated memory etc.
 			glutLeaveMainLoop();
 			break;
 		
