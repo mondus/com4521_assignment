@@ -48,11 +48,13 @@ void setNBodyPositions2f(const float *positions_x, const float *positions_y);
 	*/
 void setNBodyPositions(const nbody *positions);
 
-/** setActivityMapData
-	* A user should pass a pointer to the activity map data using this function
+/** setActivityMapData or setHistogramData
+	* A user should pass a pointer to the activity map data using either of these functions. There both perform the same operation but are both included due to interchangeable use of the term activity map and histogram within the assignment document.
 	* @param	densities	A pointer to a float array containing D*D activity values
 	*/
 void setActivityMapData(const float *activity);
+void setHistogramData(const float *densities);
+
 
 /** startVisualisationLoop
 	* Starts the main visualisation loop which will set call you simulate function

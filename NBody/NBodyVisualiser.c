@@ -135,9 +135,14 @@ void setNBodyPositions(nbody *bodies)
 	}
 }
 
-void setHistogramData(float *densities)
+void setHistogramData(const float *densities)
 {
 	Densities = densities;
+}
+
+void setActivityMapData(const float *activity)
+{
+	Densities = activity;
 }
 
 void startVisualisationLoop()
