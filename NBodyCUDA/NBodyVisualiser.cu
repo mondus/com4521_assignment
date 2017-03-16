@@ -158,7 +158,7 @@ __global__ void copyHistData(float* buffer, const float* densities, unsigned int
 
 
 //////////////////////////////// Header declared functions ////////////////////////////////
-extern "C" void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
+void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
 {
 	N = n;
 	D = d;
