@@ -2,19 +2,27 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 #include <stdbool.h>
 
+//include the header file as C (rather than nvcc default C++)
+extern "C" {
+	#include "NBodyVisualiser.h"
+}
 
-#include "NBodyVisualiser.h"
+#include <cuda_runtime.h>
+#include <cuda_gl_interop.h>
+
+#define TIMING_FRAME_COUNT 20
 
 //User supplied globals
 static unsigned int N;
 static unsigned int D;
 static MODE M;
-float *PositionsX = 0;
-float *PositionsY = 0;
-nbody *Bodies = 0;
-float *Densities = 0;
+const float *PositionsX = 0;
+const float *PositionsY = 0;
+const nbody *Bodies = 0;
+const float *Densities = 0;
 void(*simulate_function)(void) = 0;
 
 // instancing variables for histogram
@@ -50,6 +58,16 @@ GLuint vs_nbody_instance_index = 0;
 bool display_bodies = true;
 bool display_denisty = false;
 
+//cuda graphics resources
+struct cudaGraphicsResource *cuda_nbody_vbo_resource;
+struct cudaGraphicsResource *cuda_hist_vbo_resource;
+
+
+//timing
+float elapsed = 0;
+float prev_time = 0;
+unsigned int frames;
+char title[128];
 
 
 // function prototypes
@@ -65,6 +83,7 @@ void checkGLError();
 void handleKeyboardDefault(unsigned char key, int x, int y);
 void handleMouseDefault(int button, int state, int x, int y);
 void handleMouseMotionDefault(int x, int y);
+void checkCUDAError(const char *msg);
 
 // Vertex shader source code
 const char* hist_vertexShaderSource =
@@ -99,14 +118,61 @@ const char* nbody_vertexShaderSource =
 	"}																					\n"
 };
 
+//////////////////////////////// CUDA Kernels              ////////////////////////////////
+
+__global__ void copyNBodyData2f(float* buffer, const float *x, const float *y, unsigned int N)
+{
+	unsigned int i = threadIdx.x + blockIdx.x*blockDim.x;
+
+	if (i < N){
+		//copy data to mapped buffer
+		float* ptr = &buffer[i * 2];
+		ptr[0] = x[i];
+		ptr[1] = y[i];
+	}
+}
+
+
+__global__ void copyNBodyData(float* buffer, const nbody* bodies, unsigned int N)
+{
+	unsigned int i = threadIdx.x + blockIdx.x*blockDim.x;
+
+	if (i < N){
+		//copy data to mapped buffer
+		float* ptr = &buffer[i * 2];
+		ptr[0] = bodies[i].x;
+		ptr[1] = bodies[i].y;
+	}
+}
+
+__global__ void copyHistData(float* buffer, const float* densities, unsigned int D)
+{
+	unsigned int i = threadIdx.x + blockIdx.x*blockDim.x;
+
+	if (i < D*D){
+		//copy data to mapped buffer
+		buffer[i] = densities[i];
+	}
+}
+
 
 //////////////////////////////// Header declared functions ////////////////////////////////
-void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
+extern "C" void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
 {
 	N = n;
 	D = d;
 	M = m;
 	simulate_function = simulate;
+
+	//check for UVA (not available in 32 bit host mode)
+	if (M == CUDA){
+		cudaDeviceProp prop;
+		cudaGetDeviceProperties(&prop, 0);
+
+		if (prop.unifiedAddressing != 1){
+			printf("Error: No UVA found. Are you trying to build you CUDA code in 32bit mode?\n");
+		}
+	}
 
 	//initialiser the open gl viewer and context
 	initGL();
@@ -116,10 +182,42 @@ void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
 	initNBodyShader();
 	initHistVertexData();
 	initNBodyVertexData();
+
 }
 
-void setNBodyPositions2f(float *positions_x, float *positions_y)
+void setNBodyPositions2f(const float *positions_x, const float *positions_y)
 {
+	//check that the supplied pointers are device pointers
+	if (M == CUDA){
+		cudaPointerAttributes attributes;
+
+		//host allocated memory will cause an error
+		if (cudaPointerGetAttributes(&attributes, positions_x) == cudaErrorInvalidValue){
+			cudaGetLastError(); // clear out the previous API error
+			printf("Error: Pointer (positions_x) passed to setNBodyPositions2f must be a device pointer in CUDA mode!\n");
+			return;
+		}
+
+		//memory allocated by the device will not be the result may be cudaMemoryTypeHost if UVA was used.
+		if (attributes.memoryType != cudaMemoryTypeDevice){
+			printf("Error: Pointer (positions_x) passed to setNBodyPositions2f must be a device pointer in CUDA mode!\n");
+			return;
+		}
+
+		//host allocated memory will cause an error
+		if (cudaPointerGetAttributes(&attributes, positions_y) == cudaErrorInvalidValue){
+			cudaGetLastError(); // clear out the previous API error
+			printf("Error: Pointer (positions_y) passed to setNBodyPositions2f must be a device pointer in CUDA mode!\n");
+			return;
+		}
+
+		//memory allocated by the device will not be the result may be cudaMemoryTypeHost if UVA was used.
+		if (attributes.memoryType != cudaMemoryTypeDevice){
+			printf("Error: Pointer (positions_y) passed to setNBodyPositions2f must be a device pointer in CUDA mode!\n");
+			return;
+		}
+	}
+
 	PositionsX = positions_x;
 	PositionsY = positions_y;
 	if (Bodies != 0){
@@ -127,8 +225,26 @@ void setNBodyPositions2f(float *positions_x, float *positions_y)
 	}
 }
 
-void setNBodyPositions(nbody *bodies)
+void setNBodyPositions(const nbody *bodies)
 {
+	//check that the supplied pointer is a device pointer
+	if (M == CUDA){
+		cudaPointerAttributes attributes;
+
+		//host allocated memory will cause an error
+		if (cudaPointerGetAttributes(&attributes, bodies) == cudaErrorInvalidValue){
+			cudaGetLastError(); // clear out the previous API error
+			printf("Error: Pointer (bodies) passed to setNBodyPositions must be a device pointer in CUDA mode!\n");
+			return;
+		}
+
+		//memory allocated by the device will not be the result may be cudaMemoryTypeHost if UVA was used.
+		if (attributes.memoryType != cudaMemoryTypeDevice){
+			printf("Error: Pointer (bodies) passed to setNBodyPositions must be a device pointer in CUDA mode!\n");
+			return;
+		}
+	}
+
 	Bodies = bodies;
 	if ((PositionsX != 0) || (PositionsY != 0)){
 		printf("Warning: You should use either setNBodyPositions2f or setNBodyPositions\n");
@@ -137,11 +253,29 @@ void setNBodyPositions(nbody *bodies)
 
 void setHistogramData(const float *densities)
 {
-	Densities = densities;
+	setActivityMapData(densities);
 }
 
 void setActivityMapData(const float *activity)
 {
+	//if CUDA check that the supplied pointer is a device pointer
+	if (M == CUDA){
+		cudaPointerAttributes attributes;
+
+		//host allocated memory will cause an error
+		if (cudaPointerGetAttributes(&attributes, activity) == cudaErrorInvalidValue){
+			cudaGetLastError(); // clear out the previous API error
+			printf("Error: Pointer passed to setActivityMap (or setHistogramData) must be a device pointer in CUDA mode!\n");
+			return;
+		}
+
+		//memory allocated by the device will not be the result may be cudaMemoryTypeHost if UVA was used.
+		if (attributes.memoryType != cudaMemoryTypeDevice){
+			printf("Error: Pointer passed to setActivityMap (or setHistogramData) must be a device pointer in CUDA mode!\n");
+			return;
+		}
+	}
+
 	Densities = activity;
 }
 
@@ -155,20 +289,72 @@ void startVisualisationLoop()
 void displayLoop(void)
 {
 	unsigned int i;
-	float *dptr;	
+	float *dptr;
+	size_t num_bytes;
+	unsigned int blocks;
+	float t;
 
 	if (simulate_function == 0){
 		printf("Error: Simulate function has not been defined by calling initViewer(...)\n");
 		return;
 	}
 
+	//timing
+	if (M == CUDA)
+		cudaDeviceSynchronize();
+	t = (float)clock();
+	if (prev_time)
+		elapsed += t - prev_time;
+	prev_time = t;
+	frames++;
+	if (frames == TIMING_FRAME_COUNT){
+		frames = 0;
+		elapsed /= TIMING_FRAME_COUNT;
+		sprintf(title, "Com4521 Assignment - NBody Visualiser (%f FPS)", 1000.0f /elapsed);
+		glutSetWindowTitle(title);
+		elapsed = 0;
+ 	}
+
 	//call the simulation function
 	simulate_function();
 
+	//Map data from user supplied pointers into TBO using CUDA
 	if (M == CUDA){
-		printf("Error: CUDA Mode Rendering Not Supported for Part 1\n");
+		//NBODY: map buffer to device pointer so Kernel can populate it
+		glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_nbody);
+		num_bytes = N * 3 * sizeof(float);
+		cudaGraphicsMapResources(1, &cuda_nbody_vbo_resource, 0);
+		cudaGraphicsResourceGetMappedPointer((void **)&dptr, &num_bytes, cuda_nbody_vbo_resource);
+		//kernel to map data into buffer
+		blocks = N / 256;
+		if (N % 256 != 0)
+			blocks++;
+		//two possible formats for users to supplier body data
+		if (Bodies != 0){
+			copyNBodyData << <blocks, 256 >> >(dptr, Bodies, N);
+		}
+		else if ((PositionsX != 0) && (PositionsY != 0)){
+			copyNBodyData2f << <blocks, 256 >> >(dptr, PositionsX, PositionsY, N);
+		}
+		cudaGraphicsUnmapResources(1, &cuda_nbody_vbo_resource, 0);
+		checkCUDAError("Error copying NBody data from supplier device pointer\n");
+		glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
+
+		//HIST: map buffer to device pointer so Kernel can populate it
+		glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_nbody);
+		num_bytes = D*D * sizeof(float);
+		cudaGraphicsMapResources(1, &cuda_hist_vbo_resource, 0);
+		cudaGraphicsResourceGetMappedPointer((void **)&dptr, &num_bytes, cuda_hist_vbo_resource);
+		//kernel to map data into buffer
+		blocks = D*D / 256;
+		if ((D*D) % 256 != 0)
+			blocks++;
+		copyHistData << <blocks, 256 >> >(dptr, Densities, D);
+		cudaGraphicsUnmapResources(1, &cuda_hist_vbo_resource, 0);
+		checkCUDAError("Error copying Activity Map data from supplier device pointer\n");
+		glBindBuffer(GL_TEXTURE_BUFFER_EXT, 0);
 	}
-	//CPU or OPENMP
+	//Map data from user supplied pointers into TBO using CPU
 	else{
 		//map buffer to positions TBO and copy data to it from user supplied pointer
 		glBindBuffer(GL_TEXTURE_BUFFER_EXT, tbo_nbody);
@@ -384,6 +570,11 @@ void initHistVertexData()
     glBindTexture(GL_TEXTURE_BUFFER, tex_hist);
 	glTexBuffer(GL_TEXTURE_BUFFER, GL_R32F, tbo_hist);
 
+	//create cuda gl resource to write cuda data to TBO
+	if (M == CUDA){
+		cudaGraphicsGLRegisterBuffer(&cuda_hist_vbo_resource, tbo_hist, cudaGraphicsMapFlagsWriteDiscard);
+	}
+
 	//unbind buffers
     glBindBuffer(GL_TEXTURE_BUFFER, 0);
 
@@ -449,6 +640,11 @@ void initNBodyVertexData()
     glBindTexture(GL_TEXTURE_BUFFER, tex_nbody);
     glTexBuffer(GL_TEXTURE_BUFFER, GL_RG32F, tbo_nbody);
 
+	//create cuda gl resource to write cuda data to TBO
+	if (M == CUDA){
+		cudaGraphicsGLRegisterBuffer(&cuda_nbody_vbo_resource, tbo_nbody, cudaGraphicsMapFlagsWriteDiscard);
+	}
+
 	//unbind buffers
     glBindBuffer(GL_TEXTURE_BUFFER, 0);
 
@@ -474,7 +670,9 @@ void destroyViewer()
 	tbo_hist = 0;
 	glDeleteTextures(1, &tex_hist);
 	tex_hist = 0;
-	//glBindVertexArray(0);
+	if (M == CUDA){
+		cudaGraphicsUnregisterResource(cuda_hist_vbo_resource);
+	}
 	glDeleteVertexArrays(1, &vao_hist);
 	vao_hist = 0;
 
@@ -488,7 +686,9 @@ void destroyViewer()
 	tbo_nbody = 0;
 	glDeleteTextures(1, &tex_nbody);
 	tex_nbody = 0;
-	//glBindVertexArray(0);
+	if (M == CUDA){
+		cudaGraphicsUnregisterResource(cuda_nbody_vbo_resource);
+	}
 	glDeleteVertexArrays(1, &vao_nbody);
 	vao_nbody = 0;
 
@@ -665,7 +865,15 @@ void handleMouseMotionDefault(int x, int y)
 	mouse_old_y = y;
 }
 
-
+void checkCUDAError(const char *msg)
+{
+	cudaError_t err = cudaGetLastError();
+	if (cudaSuccess != err)
+	{
+		fprintf(stderr, "CUDA ERROR: %s: %s.\n", msg, cudaGetErrorString(err));
+		exit(EXIT_FAILURE);
+	}
+}
 
 
 
