@@ -5,10 +5,11 @@
 #include <time.h>
 #include <stdbool.h>
 
-//include the header file as C (rather than nvcc default C++)
-extern "C" {
+//include the header file 
+//Uncomment below if including into a *.c file rather than *.cu
+//extern "C" {
 	#include "NBodyVisualiser.h"
-}
+//}
 
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
