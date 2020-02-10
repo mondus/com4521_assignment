@@ -11,10 +11,10 @@
 static unsigned int N;
 static unsigned int D;
 static MODE M;
-float *PositionsX = 0;
-float *PositionsY = 0;
-nbody *Bodies = 0;
-float *Densities = 0;
+const float *PositionsX = 0;
+const float *PositionsY = 0;
+const nbody *Bodies = 0;
+const float *Densities = 0;
 void(*simulate_function)(void) = 0;
 
 // instancing variables for histogram
@@ -118,7 +118,7 @@ void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
 	initNBodyVertexData();
 }
 
-void setNBodyPositions2f(float *positions_x, float *positions_y)
+void setNBodyPositions2f(const float *positions_x, const float *positions_y)
 {
 	PositionsX = positions_x;
 	PositionsY = positions_y;
@@ -127,7 +127,7 @@ void setNBodyPositions2f(float *positions_x, float *positions_y)
 	}
 }
 
-void setNBodyPositions(nbody *bodies)
+void setNBodyPositions(const nbody *bodies)
 {
 	Bodies = bodies;
 	if ((PositionsX != 0) || (PositionsY != 0)){

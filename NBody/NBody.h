@@ -10,7 +10,7 @@ struct nbody{
 	float x, y, vx, vy, m;
 };
 
-typedef enum MODE { CPU, OPENMP } MODE;
+typedef enum MODE { CPU, OPENMP, CUDA } MODE;
 typedef struct nbody nbody;
 
 #endif	//__NBODY_HEADER__
