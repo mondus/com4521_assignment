@@ -8,9 +8,9 @@
 #include "NBodyVisualiser.h"
 
 //User supplied globals
-static unsigned int N;
-static unsigned int D;
-static MODE M;
+unsigned int __N;
+unsigned int __D;
+static MODE __M;
 const float *PositionsX = 0;
 const float *PositionsY = 0;
 const nbody *Bodies = 0;
@@ -103,9 +103,9 @@ const char* nbody_vertexShaderSource =
 //////////////////////////////// Header declared functions ////////////////////////////////
 void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
 {
-	N = n;
-	D = d;
-	M = m;
+	__N = n;
+	__D = d;
+	__M = m;
 	simulate_function = simulate;
 
 	//initialiser the open gl viewer and context
@@ -165,7 +165,7 @@ void displayLoop(void)
 	//call the simulation function
 	simulate_function();
 
-	if (M == CUDA){
+	if (__M == CUDA){
 		printf("Error: CUDA Mode Rendering Not Supported for Part 1\n");
 	}
 	//CPU or OPENMP
@@ -178,14 +178,14 @@ void displayLoop(void)
 			return;
 		}
 		if (Bodies != 0){
-			for (i = 0; i < N; i++){
+			for (i = 0; i < __N; i++){
 				unsigned int index = i * 2;
 				dptr[index] = Bodies[i].x;
 				dptr[index + 1] = Bodies[i].y;
 			}
 		}
 		else if ((PositionsX != 0) && (PositionsY != 0)){
-			for (i = 0; i < N; i++){
+			for (i = 0; i < __N; i++){
 				unsigned int index = i * 2;
 				dptr[index] = PositionsX[i];
 				dptr[index + 1] = PositionsY[i];
@@ -202,7 +202,7 @@ void displayLoop(void)
 			return;
 		}
 		if (Densities != 0){
-			for (i = 0; i < D*D; i++){
+			for (i = 0; i < __D*__D; i++){
 				dptr[i] = Densities[i];
 			}
 		}
@@ -311,15 +311,15 @@ void initHistVertexData()
 	// create buffer object (all vertex positions normalised between -0.5 and +0.5)
 	glGenBuffers(1, &vao_hist_vertices);
 	glBindBuffer(GL_ARRAY_BUFFER, vao_hist_vertices);
-	glBufferData(GL_ARRAY_BUFFER, D*D * 4 * 3 * sizeof(float), 0, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, __D*__D * 4 * 3 * sizeof(float), 0, GL_STATIC_DRAW);
 	float* verts = (float*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-	float quad_size = 1.0f / (float)(D);
-	for (unsigned int x = 0; x < D; x++) {
-		for (unsigned int y = 0; y < D; y++) {
-			int offset = (x + (y * (D))) * 3 * 4;
+	float quad_size = 1.0f / (float)(__D);
+	for (unsigned int x = 0; x < __D; x++) {
+		for (unsigned int y = 0; y < __D; y++) {
+			int offset = (x + (y * (__D))) * 3 * 4;
 
-			float x_min = (float)x / (float)(D);
-			float y_min = (float)y / (float)(D);
+			float x_min = (float)x / (float)(__D);
+			float y_min = (float)y / (float)(__D);
 
 			//first vertex
 			verts[offset + 0] = x_min - 0.5f;
@@ -350,11 +350,11 @@ void initHistVertexData()
 	// instance index buffer
 	glGenBuffers(1, &vao_hist_instance_ids);
 	glBindBuffer(GL_ARRAY_BUFFER, vao_hist_instance_ids);
-	glBufferData(GL_ARRAY_BUFFER, D*D * 4 * sizeof(unsigned int), 0, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, __D*__D * 4 * sizeof(unsigned int), 0, GL_STATIC_DRAW);
 	unsigned int* ids = (unsigned int*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-	for (unsigned int x = 0; x < D; x++) {
-		for (unsigned int y = 0; y < D; y++) {
-			int index = (x + (y * (D)));
+	for (unsigned int x = 0; x < __D; x++) {
+		for (unsigned int y = 0; y < __D; y++) {
+			int index = (x + (y * (__D)));
 			int offset = index * 4;
 
 			//four vertices (a quad) have the same instance index
@@ -377,7 +377,7 @@ void initHistVertexData()
 
 	glGenBuffers(1, &tbo_hist);
     glBindBuffer(GL_TEXTURE_BUFFER, tbo_hist);
-    glBufferData(GL_TEXTURE_BUFFER, D*D * 1 * sizeof(float), 0, GL_DYNAMIC_DRAW);		// 1 float elements in a texture buffer object for histogram density
+    glBufferData(GL_TEXTURE_BUFFER, __D*__D * 1 * sizeof(float), 0, GL_DYNAMIC_DRAW);		// 1 float elements in a texture buffer object for histogram density
 
 	/* generate texture */
 	glGenTextures(1, &tex_hist);
@@ -405,9 +405,9 @@ void initNBodyVertexData()
 	// create buffer object (all vertex positions normalised between -0.5 and +0.5)
 	glGenBuffers(1, &vao_nbody_vertices);
 	glBindBuffer(GL_ARRAY_BUFFER, vao_nbody_vertices);
-	glBufferData(GL_ARRAY_BUFFER, N * 3 * sizeof(float), 0, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, __N * 3 * sizeof(float), 0, GL_STATIC_DRAW);
 	float* verts = (float*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-	for (unsigned int i = 0; i < N; i++) {
+	for (unsigned int i = 0; i < __N; i++) {
 			int offset = i*3;
 
 			//vertex point
@@ -423,9 +423,9 @@ void initNBodyVertexData()
 	// instance index buffer
 	glGenBuffers(1, &vao_nbody_instance_ids);
 	glBindBuffer(GL_ARRAY_BUFFER, vao_nbody_instance_ids);
-	glBufferData(GL_ARRAY_BUFFER, N * 1 * sizeof(unsigned int), 0, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, __N * 1 * sizeof(unsigned int), 0, GL_STATIC_DRAW);
 	unsigned int* ids = (unsigned int*)glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
-	for (unsigned int i = 0; i < N; i++) {
+	for (unsigned int i = 0; i < __N; i++) {
 			//single vertex as it is a point
 			ids[i] = i;
 	}
@@ -442,7 +442,7 @@ void initNBodyVertexData()
 
 	glGenBuffers(1, &tbo_nbody);
 	glBindBuffer(GL_TEXTURE_BUFFER, tbo_nbody);
-    glBufferData(GL_TEXTURE_BUFFER, N * 2 * sizeof(float), 0, GL_DYNAMIC_DRAW);		// 2 float elements in a texture buffer object for x and y position
+    glBufferData(GL_TEXTURE_BUFFER, __N * 2 * sizeof(float), 0, GL_DYNAMIC_DRAW);		// 2 float elements in a texture buffer object for x and y position
 
 	/* generate texture */
 	glGenTextures(1, &tex_nbody);
@@ -567,7 +567,7 @@ void render(void)
 		glBindTexture(GL_TEXTURE_BUFFER_EXT, tex_hist);
 
 		// Draw the vertices with attached vertex attribute pointers
-		glDrawArrays(GL_QUADS, 0, 4 * D*D);
+		glDrawArrays(GL_QUADS, 0, 4 * __D*__D);
 
 		//unbind the vertex array object
 		glBindVertexArray(0);
@@ -589,7 +589,7 @@ void render(void)
 		glBindTexture(GL_TEXTURE_BUFFER_EXT, tex_nbody);
 
 		// Draw the vertices with attached vertex attribute pointers
-		glDrawArrays(GL_POINTS, 0, 1 * N);
+		glDrawArrays(GL_POINTS, 0, 1 * __N);
 
 		//unbind the vertex array object
 		glBindVertexArray(0);

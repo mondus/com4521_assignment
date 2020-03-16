@@ -12,10 +12,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="NBody.h" />
+    <ClInclude Include="NBodyLogger.h" />
     <ClInclude Include="NBodyVisualiser.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="NBody.c" />
+    <ClCompile Include="NBodyLogger.c" />
     <ClCompile Include="NBodyVisualiser.c" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
