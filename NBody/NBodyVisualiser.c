@@ -15,9 +15,9 @@ const float *PositionsX = 0;
 const float *PositionsY = 0;
 const nbody *Bodies = 0;
 const float *Densities = 0;
+void(*simulate_function)(void) = 0;
 
 #ifndef NO_OPENGL
-void(*simulate_function)(void) = 0;
 
 // instancing variables for histogram
 GLuint vao_hist = 0;
@@ -108,7 +108,6 @@ void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
 	__N = n;
 	__D = d;
 	__M = m;
-	simulate_function = simulate;
 
 	//initialiser the open gl viewer and context
 	initGL();
@@ -120,11 +119,13 @@ void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
 	initNBodyVertexData();
 }
 #else 
+#include "NBodyLogger.h"
 void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
 {
     __N = n;
     __D = d;
     __M = m;
+    simulate_function = simulate;
 }
 #endif
 void setNBodyPositions2f(const float *positions_x, const float *positions_y)
@@ -156,7 +157,23 @@ void setActivityMapData(const float *activity)
 #ifdef NO_OPENGL
 void startVisualisationLoop()
 {
-    // Do nothing
+    unsigned int i = 0;
+    while(1)
+    {
+        //call the simulation function
+        simulate_function();
+        if (i % 50 == 0) {
+            // Log the image
+            clearImage();
+            renderHistogramToImage();
+            renderNBodyToImage();
+            writeImage(i);
+        }
+        i++;
+        // Best not to let it run forever writing to disk
+        if (i > 100000)
+            break;
+    }
 }
 #else
 void startVisualisationLoop()
