@@ -15,6 +15,8 @@ const float *PositionsX = 0;
 const float *PositionsY = 0;
 const nbody *Bodies = 0;
 const float *Densities = 0;
+
+#ifndef NO_OPENGL
 void(*simulate_function)(void) = 0;
 
 // instancing variables for histogram
@@ -117,7 +119,14 @@ void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
 	initHistVertexData();
 	initNBodyVertexData();
 }
-
+#else 
+void initViewer(unsigned int n, unsigned int d, MODE m, void(*simulate)(void))
+{
+    __N = n;
+    __D = d;
+    __M = m;
+}
+#endif
 void setNBodyPositions2f(const float *positions_x, const float *positions_y)
 {
 	PositionsX = positions_x;
@@ -144,7 +153,12 @@ void setActivityMapData(const float *activity)
 {
 	Densities = activity;
 }
-
+#ifdef NO_OPENGL
+void startVisualisationLoop()
+{
+    // Do nothing
+}
+#else
 void startVisualisationLoop()
 {
 	glutMainLoop();
@@ -665,16 +679,4 @@ void handleMouseMotionDefault(int x, int y)
 	mouse_old_y = y;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+#endif

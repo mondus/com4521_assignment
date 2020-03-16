@@ -2,7 +2,7 @@
 #ifndef __NBODY_VIEWER_HEADER__
 #define __NBODY_VIEWER_HEADER__
 
-
+#ifndef NO_OPENGL
 // OpenGL Graphics includes
 #define WINDOWS_LEAN_AND_MEAN
 #define NOMINMAX
@@ -11,12 +11,13 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 
-#include "NBody.h"
-
 #define WINDOW_WIDTH 1024		/** Window width */
 #define WINDOW_HEIGHT 768		/** Window height */
 #define REFRESH_DELAY 10		/** Refresh delay controls how frequently the scene should be re-drawn (measured in ms) */
+#endif
 
+
+#include "NBody.h"
 /**
  * This NBodyVisualiser module can be used for visualising nbody systems and activity maps. A User is required to call the following functions:
  *	1) initViewer(...) - This will initialise any data and memory required by the visualiser
@@ -30,7 +31,7 @@
 	* initViewer must be the first call to this module. It will configure and allocate any data required for the visualiser.
 	* @param	N	The NBody population size
 	* @param	D	The width/height of the activity map grid
-	* @param	M	The simulation mode. This must be CPU or OpenMP for Part 1 of the assignment
+	* @param	m	The simulation mode. This must be CPU or OpenMP for Part 1 of the assignment
 	* @param	simulate	A function pointer to your simulation step function which must have a void argument and void return.
 	*/
 void initViewer(unsigned int N, unsigned int D, MODE m, void (*simulate)(void));

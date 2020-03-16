@@ -4,8 +4,11 @@
 #include <time.h>
 #include <math.h>
 
+// #define NO_OPENGL // Uncomment this to disable building OpenGL
+
 #include "NBody.h"
 #include "NBodyVisualiser.h"
+#include "NBodyLogger.h"
 
 #define USER_NAME "test"		//replace with your username
 
