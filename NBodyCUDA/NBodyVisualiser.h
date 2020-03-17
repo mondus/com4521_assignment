@@ -2,7 +2,7 @@
 #ifndef __NBODY_VIEWER_HEADER__
 #define __NBODY_VIEWER_HEADER__
 
-
+#ifndef NO_OPENGL
 // OpenGL Graphics includes
 #define WINDOWS_LEAN_AND_MEAN
 #define NOMINMAX
@@ -11,12 +11,13 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 
-#include "NBody.h"
-
 #define WINDOW_WIDTH 1024		/** Window width */
 #define WINDOW_HEIGHT 768		/** Window height */
 #define REFRESH_DELAY 10		/** Refresh delay controls how frequently the scene should be re-drawn (measured in ms) */
+#endif
 
+
+#include "NBody.h"
 /**
  * This NBodyVisualiser module can be used for visualising nbody systems and activity maps. A User is required to call the following functions:
  *	1) initViewer(...) - This will initialise any data and memory required by the visualiser
@@ -37,20 +38,20 @@ void initViewer(unsigned int N, unsigned int D, MODE m, void (*simulate)(void));
 
 /** setNBodyPositions2f
 	* A user should pass pointers to the NBody x and y position data using either this function or setNBodyPositions. In CPU or OPENMP mode this should be a pointer to host memory (allocated with malloc). In GPU mode this should be a pointer to device memory (Allocated with cudaMalloc). This function will report an error if a host memory pointer is passed in GPU mode.
-	* @param	positions_x	A pointer to a float array of length N containing the x position of bodies
-	* @param	positions_y	A pointer to a float array of length N containing the y position of bodies
+	* @param	positions_x	A pointer to a float array of length __N containing the x position of bodies
+	* @param	positions_y	A pointer to a float array of length __N containing the y position of bodies
 	*/
 void setNBodyPositions2f(const float *positions_x, const float *positions_y);
 
 /** setNBodyPositions
 	* A user should pass a pointer to the NBody position data using either this function or setNBodyPositions2f. In CPU or OPENMP mode this should be a pointer to host memory (allocated with malloc). In GPU mode this should be a pointer to device memory (Allocated with cudaMalloc). This function will report an error if a host memory pointer is passed in GPU mode.
-	* @param	positions	A pointer to an nbody array containing all N bodies
+	* @param	positions	A pointer to an nbody array containing all __N bodies
 	*/
 void setNBodyPositions(const nbody *positions);
 
 /** setActivityMapData or setHistogramData
 * A user should pass a pointer to the activity map data using either of these functions. There both perform the same operation but are both included due to interchangeable use of the term activity map and histogram within the assignment document. In CPU or OPENMP mode this should be a pointer to host memory (allocated with malloc). In GPU mode this should be a pointer to device memory (Allocated with cudaMalloc). This function will report an error if a host memory pointer is passed in GPU mode.
-* @param	densities	A pointer to a float array containing D*D activity values
+* @param	densities	A pointer to a float array containing __D*__D activity values
 */
 void setActivityMapData(const float *activity);
 void setHistogramData(const float *densities);
@@ -62,6 +63,14 @@ void setHistogramData(const float *densities);
 	* key 'q' can be used to exit.
 	*/
 void startVisualisationLoop();
+
+/**
+ * NEW IN PART 2
+ * This function releases memory allocated by the visualiser when in CUDA mode and clears pointers stored by the setNbody/setActivity/setHistogram methods.
+ * It should be called before exit
+ * @note Calling destroyViewer() triggers this automatically
+ */
+void freeVisualisationMemory();
 
 
 
