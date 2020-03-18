@@ -200,7 +200,7 @@ void setNBodyPositions2f(const float *positions_x, const float *positions_y)
 		}
 
 		//memory allocated by the device will not be the result may be cudaMemoryTypeHost if UVA was used.
-		if (attributes.memoryType != cudaMemoryTypeDevice){
+		if (attributes.type != cudaMemoryTypeDevice){
 			printf("Error: Pointer (positions_x) passed to setNBodyPositions2f must be a device pointer in CUDA mode!\n");
 			return;
 		}
@@ -213,7 +213,7 @@ void setNBodyPositions2f(const float *positions_x, const float *positions_y)
 		}
 
 		//memory allocated by the device will not be the result may be cudaMemoryTypeHost if UVA was used.
-		if (attributes.memoryType != cudaMemoryTypeDevice){
+		if (attributes.type != cudaMemoryTypeDevice){
 			printf("Error: Pointer (positions_y) passed to setNBodyPositions2f must be a device pointer in CUDA mode!\n");
 			return;
 		}
@@ -240,7 +240,7 @@ void setNBodyPositions(const nbody *bodies)
 		}
 
 		//memory allocated by the device will not be the result may be cudaMemoryTypeHost if UVA was used.
-		if (attributes.memoryType != cudaMemoryTypeDevice){
+		if (attributes.type != cudaMemoryTypeDevice){
 			printf("Error: Pointer (bodies) passed to setNBodyPositions must be a device pointer in CUDA mode!\n");
 			return;
 		}
@@ -271,7 +271,7 @@ void setActivityMapData(const float *activity)
 		}
 
 		//memory allocated by the device will not be the result may be cudaMemoryTypeHost if UVA was used.
-		if (attributes.memoryType != cudaMemoryTypeDevice){
+		if (attributes.type != cudaMemoryTypeDevice){
 			printf("Error: Pointer passed to setActivityMap (or setHistogramData) must be a device pointer in CUDA mode!\n");
 			return;
 		}
